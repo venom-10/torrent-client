@@ -2,6 +2,7 @@ package bencode
 
 import (
 	"bytes"
+	"crypto/sha1"
 	"errors"
 	"fmt"
 	"strconv"
@@ -90,12 +91,18 @@ func (p *parser) parseDict() (map[string]any, error) {
 			return nil, err
 		}
 
+		valStart := p.pointer
 		val, err := p.parseNext()
 		if err != nil {
 			return nil, err
 		}
+		valEnd := p.pointer
 
 		dict[key] = val
+
+		if key == "info" {
+			dict["raw_info_bytes"] = p.data[valStart:valEnd]
+		}
 	}
 
 	if p.pointer >= len(p.data) {
@@ -125,6 +132,24 @@ func (p *parser) parseNext() (any, error) {
 	}
 }
 
+func splitPieceHashes(pieces string) ([][20]byte, error) {
+	hashLen := 20
+	if len(pieces)%hashLen != 0 {
+		return nil, fmt.Errorf("malformed pieces string: length is not a multiple of 20")
+	}
+
+	numHashes := len(pieces) / hashLen
+	hashes := make([][20]byte, numHashes)
+
+	for i := 0; i < numHashes; i++ {
+		start := i * hashLen
+		end := start + hashLen
+		copy(hashes[i][:], pieces[start:end])
+	}
+
+	return hashes, nil
+}
+
 func unmarshalTorrent(parsedData any) (*BencodeTorrent, error) {
 	root, ok := parsedData.(map[string]any)
 	if !ok {
@@ -142,7 +167,11 @@ func unmarshalTorrent(parsedData any) (*BencodeTorrent, error) {
 			torrent.Info.Name = name
 		}
 		if pieces, ok := infoRaw["pieces"].(string); ok {
-			torrent.Info.Pieces = pieces
+			pieceHash, err := splitPieceHashes(pieces)
+			if err != nil {
+				return nil, errors.New("invalid pieceHashes")
+			}
+			torrent.Info.Pieces = pieceHash
 		}
 		if pieceLength, ok := infoRaw["piece length"].(int64); ok {
 			torrent.Info.PieceLength = int(pieceLength)
@@ -154,7 +183,30 @@ func unmarshalTorrent(parsedData any) (*BencodeTorrent, error) {
 		return nil, errors.New("invalid torrent file: missing info dictionary")
 	}
 
+	if rawInfo, ok := root["raw_info_bytes"].([]byte); ok {
+		torrent.InfoHash = sha1.Sum(rawInfo)
+	} else {
+		return nil, errors.New("invalid torrent file")
+	}
+
 	return torrent, nil
+}
+
+func unmarshalTrackerResponse(parsedData map[string]any) (*TrackerResp, error) {
+	tr := &TrackerResp{}
+	if interval, ok := parsedData["interval"].(int64); ok {
+		tr.Interval = interval
+	} else {
+		return nil, errors.New("invalid tracker response: missing interval")
+	}
+
+	if peers, ok := parsedData["peers"].(string); ok {
+		tr.Peers = peers
+	} else {
+		return nil, errors.New("try again: missing peers")
+	}
+
+	return tr, nil
 }
 
 func Parse(data []byte) (*BencodeTorrent, error) {
@@ -169,4 +221,17 @@ func Parse(data []byte) (*BencodeTorrent, error) {
 	}
 
 	return unmarshalTorrent(parsedData)
+}
+func ParseTrackerResponse(data []byte) (*TrackerResp, error) {
+	p := &parser{
+		data:    data,
+		pointer: 0,
+	}
+
+	parsedData, err := p.parseDict()
+	if err != nil {
+		return nil, err
+	}
+
+	return unmarshalTrackerResponse(parsedData)
 }
