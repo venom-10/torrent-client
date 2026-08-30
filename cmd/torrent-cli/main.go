@@ -1,11 +1,13 @@
 package main
 
 import (
+	// "fmt"
 	"fmt"
 	"log"
 	"os"
 
 	"github.com/venom-10/torrent-client/internal/metainfo"
+	"github.com/venom-10/torrent-client/internal/tracker"
 )
 
 func main() {
@@ -15,14 +17,12 @@ func main() {
 
 	filePath := os.Args[1]
 
-	torrent, err := metainfo.Open(filePath)
+	torrentFile, err := metainfo.Open(filePath)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	fmt.Printf("Announce URL: %s\n", torrent.Announce)
-	fmt.Printf("File Name: %s\n", torrent.Info.Name)
-	fmt.Printf("Length: %d bytes\n", torrent.Info.Length)
-	fmt.Printf("Piece Length: %d bytes\n", torrent.Info.PieceLength)
-	fmt.Printf("Total Pieces: %d\n", len(torrent.Info.Pieces))
+	peers, _ := tracker.RequestPeers(torrentFile)
+	fmt.Println(peers)
+
 }
