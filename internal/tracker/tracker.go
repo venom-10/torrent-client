@@ -2,6 +2,8 @@ package tracker
 
 import (
 	"crypto/rand"
+	"fmt"
+
 	// "fmt"
 	"io"
 	"net/http"
@@ -11,6 +13,7 @@ import (
 
 	"github.com/venom-10/torrent-client/internal/bencode"
 	"github.com/venom-10/torrent-client/internal/metainfo"
+	"github.com/venom-10/torrent-client/internal/p2p"
 	"github.com/venom-10/torrent-client/internal/peers"
 )
 
@@ -69,5 +72,11 @@ func RequestPeers(tf *metainfo.TorrentFile) ([]peers.Peer, error) {
 		return nil, err
 	}
 
-	return peers.Unmarshal([]byte(tr.Peers))
+	peerList, err := peers.Unmarshal([]byte(tr.Peers))
+
+	conn, err := p2p.ConnectToPeer(peerList[0], peerId, tf.InfoHash)
+
+	fmt.Println(conn)
+
+	return nil, nil
 }

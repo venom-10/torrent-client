@@ -23,6 +23,7 @@ func main() {
 	}
 
 	peers, _ := tracker.RequestPeers(torrentFile)
+
 	fmt.Println(peers)
 
 }
