@@ -52,7 +52,7 @@ func ParseHandshake(b []byte) (*Handshake, error) {
 	copy(infoHash[:], b[28:48])
 
 	var peerId [20]byte
-	copy(infoHash[:], b[48:68])
+	copy(peerId[:], b[48:68])
 
 	return &Handshake{
 		Pstr:     pstr,
