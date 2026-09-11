@@ -2,9 +2,6 @@ package tracker
 
 import (
 	"crypto/rand"
-	"fmt"
-
-	// "fmt"
 	"io"
 	"net/http"
 	"net/url"
@@ -13,11 +10,10 @@ import (
 
 	"github.com/venom-10/torrent-client/internal/bencode"
 	"github.com/venom-10/torrent-client/internal/metainfo"
-	"github.com/venom-10/torrent-client/internal/p2p"
 	"github.com/venom-10/torrent-client/internal/peers"
 )
 
-func generatePeerId() ([20]byte, error) {
+func GeneratePeerId() ([20]byte, error) {
 	var id [20]byte
 	copy(id[:8], []byte("venom-10"))
 	_, err := rand.Read(id[8:])
@@ -44,11 +40,7 @@ func buildTrackerURL(tf *metainfo.TorrentFile, peerId [20]byte) (string, error) 
 	return base.String(), err
 }
 
-func RequestPeers(tf *metainfo.TorrentFile) ([]peers.Peer, error) {
-	peerId, err := generatePeerId()
-	if err != nil {
-		return nil, err
-	}
+func RequestPeers(tf *metainfo.TorrentFile, peerId [20]byte) ([]peers.Peer, error) {
 	url, err := buildTrackerURL(tf, peerId)
 	if err != nil {
 		return nil, err
@@ -72,11 +64,5 @@ func RequestPeers(tf *metainfo.TorrentFile) ([]peers.Peer, error) {
 		return nil, err
 	}
 
-	peerList, err := peers.Unmarshal([]byte(tr.Peers))
-
-	conn, err := p2p.ConnectToPeer(peerList[0], peerId, tf.InfoHash)
-
-	fmt.Println(conn)
-
-	return nil, nil
+	return peers.Unmarshal([]byte(tr.Peers))
 }
