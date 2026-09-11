@@ -92,7 +92,6 @@ func (c *Client) HandleMessage() (*message.Message, error) {
 	return msg, nil
 }
 
-
 func (c *Client) SendInterested() error {
 	msg := &message.Message{ID: message.MsgInterested}
 	if _, err := c.Conn.Write(msg.Serialize()); err != nil {
@@ -114,4 +113,70 @@ func (c *Client) WaitForUnchoke(timeout time.Duration) error {
 		}
 	}
 	return nil
+}
+
+const (
+	blockSize  = 16384
+	maxBacklog = 5
+)
+
+/* index = 0, pieceLength = 262144 byte  so total = 16*16384 */
+func (c *Client) DownloadPiece(index, pieceLength int) ([]byte, error) {
+	buf := make([]byte, pieceLength)
+	downloaded := 0
+	requested := 0
+	backlog := 0
+
+	for downloaded < pieceLength {
+		if backlog < maxBacklog && requested < pieceLength {
+			size := min(blockSize, pieceLength-requested)
+			req := message.FormatRequest(index, requested, size)
+			if _, err := c.Conn.Write(req.Serialize()); err != nil {
+				return nil, err
+			}
+
+			backlog++
+			requested += size
+		}
+
+		c.Conn.SetReadDeadline(time.Now().Add(30 * time.Second))
+
+		msg, err := c.HandleMessage()
+
+		c.Conn.SetReadDeadline(time.Time{})
+		if err != nil {
+			return nil, err
+		}
+
+		if msg == nil {
+			continue
+		}
+
+		if msg.ID != message.MsgPiece {
+			continue
+		}
+
+		if len(msg.Payload) < 8 {
+			return nil, fmt.Errorf("invalid piece payload length %d", len(msg.Payload))
+		}
+
+		gotIndex := int(binary.BigEndian.Uint32(msg.Payload[0:4]))
+
+		if gotIndex != index {
+			return nil, fmt.Errorf("expected piece index %d, got %d", index, gotIndex)
+		}
+
+		begin := int(binary.BigEndian.Uint32(msg.Payload[4:8]))
+		block := msg.Payload[8:]
+
+		if begin < 0 || begin+len(block) > pieceLength {
+			return nil, fmt.Errorf("block out of bounds: begin %d, len %d, piece length %d", begin, len(block), pieceLength)
+		}
+
+		copy(buf[begin:], block)
+		downloaded += len(block)
+		backlog--
+
+	}
+	return buf, nil
 }
