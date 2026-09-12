@@ -142,12 +142,10 @@ func (c *Client) DownloadPiece(index, pieceLength int) ([]byte, error) {
 		c.Conn.SetReadDeadline(time.Now().Add(30 * time.Second))
 
 		msg, err := c.HandleMessage()
-
 		c.Conn.SetReadDeadline(time.Time{})
 		if err != nil {
 			return nil, err
 		}
-
 		if msg == nil {
 			continue
 		}
