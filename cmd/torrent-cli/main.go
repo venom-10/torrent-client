@@ -68,26 +68,37 @@ func main() {
 		log.Fatal(err)
 	}
 
-	buf, err := client.DownloadPiece(0, torrentFile.PieceLength)
-
+	file, err := os.Create(torrentFile.Name)
 	if err != nil {
-		log.Fatal("error downloading piece 0")
-	}
-
-	hash := sha1.Sum(buf)
-
-	if hash != torrentFile.PieceHashes[0] {
-		log.Fatal("wrong hashFile received")
-	}
-
-	file, err := os.Create("./deb_ubuntu")
-	if err != nil {
-		log.Fatal("error creating file")
+		log.Fatal("error creating file: ", err)
 	}
 	defer file.Close()
 
-	file.WriteAt(buf, 0)
+	numPieces := len(torrentFile.PieceHashes)
 
+	for index := 0; index < numPieces; index++ {
+		pieceLength := torrentFile.PieceLength
+		if index == numPieces-1 {
+			pieceLength = torrentFile.Length - torrentFile.PieceLength*(numPieces-1)
+		}
 
-	fmt.Println("peer unchoked us - ready to request blocks")
+		buf, err := client.DownloadPiece(index, pieceLength)
+		if err != nil {
+			log.Fatalf("error downloading piece %d: %v", index, err)
+		}
+
+		hash := sha1.Sum(buf)
+		if hash != torrentFile.PieceHashes[index] {
+			log.Fatalf("piece %d failed hash check", index)
+		}
+
+		offset := int64(index) * int64(torrentFile.PieceLength)
+		if _, err := file.WriteAt(buf, offset); err != nil {
+			log.Fatalf("error writing piece %d: %v", index, err)
+		}
+
+		fmt.Printf("piece %d/%d verified and written\n", index+1, numPieces)
+	}
+
+	fmt.Println("download complete")
 }
