@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/sha1"
 	"fmt"
 	"log"
 	"os"
@@ -38,10 +39,7 @@ func main() {
 		log.Fatal("tracker returned no peers")
 	}
 
-	attempts := len(peerList)
-	if attempts > maxPeerAttempts {
-		attempts = maxPeerAttempts
-	}
+	attempts := min(len(peerList), maxPeerAttempts)
 
 	var client *p2p.Client
 	var connectedPeer string
@@ -69,6 +67,27 @@ func main() {
 	if err := client.WaitForUnchoke(10 * time.Second); err != nil {
 		log.Fatal(err)
 	}
+
+	buf, err := client.DownloadPiece(0, torrentFile.PieceLength)
+
+	if err != nil {
+		log.Fatal("error downloading piece 0")
+	}
+
+	hash := sha1.Sum(buf)
+
+	if hash != torrentFile.PieceHashes[0] {
+		log.Fatal("wrong hashFile received")
+	}
+
+	file, err := os.Create("./deb_ubuntu")
+	if err != nil {
+		log.Fatal("error creating file")
+	}
+	defer file.Close()
+
+	file.WriteAt(buf, 0)
+
 
 	fmt.Println("peer unchoked us - ready to request blocks")
 }
