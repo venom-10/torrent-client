@@ -18,8 +18,12 @@ func ConnectToPeer(p peers.Peer, peerId [20]byte, infoHash [20]byte) (net.Conn, 
 		return nil, err
 	}
 
-	req := handshake.NewHandshake(infoHash, peerId)
+	if err := conn.SetDeadline(time.Now().Add(7 * time.Second)); err != nil {
+		conn.Close()
+		return nil, err
+	}
 
+	req := handshake.NewHandshake(infoHash, peerId)
 	_, err = conn.Write(req.Serialize())
 	if err != nil {
 		conn.Close()
@@ -28,6 +32,10 @@ func ConnectToPeer(p peers.Peer, peerId [20]byte, infoHash [20]byte) (net.Conn, 
 
 	resBuf := make([]byte, 68)
 	_, err = io.ReadFull(conn, resBuf)
+	if err != nil {
+		conn.Close()
+		return nil, err
+	}
 
 	resHandshake, err := handshake.ParseHandshake(resBuf)
 
@@ -41,6 +49,10 @@ func ConnectToPeer(p peers.Peer, peerId [20]byte, infoHash [20]byte) (net.Conn, 
 		return nil, fmt.Errorf("expected infohash %x but got %x", infoHash, resHandshake.InfoHash)
 	}
 
-	return conn, err
+	if err := conn.SetDeadline(time.Time{}); err != nil {
+		conn.Close()
+		return nil, err
+	}
 
+	return conn, nil
 }

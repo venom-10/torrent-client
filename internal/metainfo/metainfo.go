@@ -21,6 +21,9 @@ func Open(filePath string) (*TorrentFile, error) {
 		return nil, err
 	}
 	bt, err := bencode.Parse(data)
+	if err != nil {
+		return nil, err
+	}
 
 	tf := &TorrentFile{
 		Announce:    bt.Announce,
